@@ -5,11 +5,15 @@ import bcrypt from "bcrypt";
 import jwt from  "jsonwebtoken"
 import { OAuth2Client } from "google-auth-library";
 import { json } from "express";
+import { ProviderEnum } from "../../common/enum/user.enum.js";
+import joi from "joi"
 
 const client = new OAuth2Client();
 
 export const signUp = async (req, res) => {
     try {
+
+
         const {fName, lName, email, password ,age,gender, phone} =(req.body)
         if(await dbService.findOne({
             model:userModel,
@@ -20,9 +24,23 @@ export const signUp = async (req, res) => {
         const encryptedPhone = encrypt(phone);
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        const paths = []
+        for (const file of req.files.attachments) {
+            paths.push(file.path)
+        }
+
         const user = await dbService.create({
             model: userModel,
-            data:{ fName, lName,email,password:hashedPassword,age,gender,phone: encryptedPhone}
+            data:{ fName,
+                 lName,email,
+                 password:hashedPassword,
+                 age,
+                 gender,
+                 phone: encryptedPhone,
+                 profileImage: req.files.attachment[0].path,
+                 coverImages: paths
+
+                }
         })
         return res.status(201).json({message:'user created', user})
     } catch (error) {
@@ -51,11 +69,11 @@ export const signUpWithGmail = async (req, res) => {
             email,
             profileImage: picture,
             isConfirmed : email_verfied,
-            provider: "google"
+            provider: ProviderEnum.google
         })
         }
 
-        if(user.provider == "system"){
+        if(user.provider == ProviderEnum.system){
             return res.status(400),json({message:"login with system only "})
         }
          const access_token = jwt.sign({id: user._id, email: user.email },"ahmed1234",{
@@ -78,7 +96,7 @@ export const signin = async (req, res) => {
             model:userModel,
             filter:{ email :email.toLowerCase(),
                 // isConfirmed: true,
-                provider:"system"
+                provider:ProviderEnum.system
          }
         })
         if(!user){
@@ -113,27 +131,6 @@ export const signin = async (req, res) => {
 
 
 export const getProfile = async (req, res) => {
-    try {
-        const { token } =req.body
-
-        if(!token){
-            return res.status(400).json({message : "token not exist "})
-        }
-
-        const decoded = jwt.verify(token,"ahmed1234")
-
-        const user = await dbService.findOne({
-            model:userModel,
-            filter:{ 
-                email :decoded.email.toLowerCase(),
-            }
-        })
-        if(!user){
-            return res.status(404).json({message : "user not exist "})
-        }
-      
-        return res.status(201).json({message:'done', user})
-    } catch (error) { 
-        res.status(500).json({message:error.message, stack: error.stack})
-    }
+   
+        res.status(500).json({message:"done", user: req.user})
 }
